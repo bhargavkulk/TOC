@@ -15,49 +15,54 @@ Ltac fdestr := try match goal with
 | H : False |- ?G => destruct H
 end.
 
-Notation "f ˙ g" := (fun x => f (g x)) (at level 80).
+Fixpoint pair_up {A B} a l : list (A * B) :=
+  match l with
+  | [] => []
+  | x :: l' => (a, x) :: pair_up a l'
+  end.
 
-Definition set (A : Type) := A -> bool.
-Definition uni {A : Type} (a b : set A) :=
-  fun x => (a x) || (b x).
-Definition inters {A : Type} (a b : set A) :=
-  fun x => (a x) && (b x).
-Definition compl {A : Type} (a : set A) :=
-  fun x => negb (a x).
+Fixpoint cross_product {A B} l1 l2 : list (A * B) :=
+  match l1, l2 with
+  | [], _ => []
+  | _, [] => []
+  | x :: l1', _ => pair_up x l2 ++ cross_product l1' l2
+  end.
 
-Class DecEq {A : Type} := {
-  deq (x y : A) : {x = y} + {x <> y}
-}.
+Fixpoint powerset {A} (l : list A) :=
+match l with
+| []      => [[]]
+| x :: xs => map (fun l => x :: l) (powerset xs) ++ (powerset xs)
+end.
 
-Print sumbool.
-
-Definition deqb {A : Type} `{EqA : DecEq A} (a b : A) :=
-  (if deq a b then true else false).
-  
-Theorem deqb_eq : forall (A: Type) `{EqA : DecEq A} (x y : A), deqb x y = true <-> x = y.
+Lemma flat_map_comp :
+forall A B C
+  (f : B -> list C)
+  (g : A -> list B)
+  l,
+  flat_map f (flat_map g l) = flat_map (fun x => flat_map f (g x)) l.
 Proof.
-  unfold deqb.
   intros.
-  destruct (deq x y); now split.
+  gendep f.
+  gendep g.
+  induct l.
+  - rewrite <- IHl.
+    apply flat_map_app.
 Qed.
 
-Notation "a =? b" := (if deq a b then true else false) (at level 70, no associativity).
-Notation "a == b" := (deq a b) (at level 70, no associativity).
-
-#[export] Program Instance DecEqPair {A B : Type} `(EqA : DecEq A, EqB : DecEq B) : @DecEq (prod A B) := {}.
-Next Obligation.
+Lemma existsb_orb : forall A (f : A -> bool) l,
+  existsb f l = true <-> existsb (fun a => f a || false) l = true.
 Proof.
-  destruct EqA as [H1].
-  destruct EqB as [H2].
-  destruct (H1 a0 a), (H2 b0 b);
-  try (right; subst; intro; apply n; now inversion H).
-  + left. now subst.
-Qed.
-
-Scheme Equality for list.
-
-#[export] Program Instance DecEqList {A: Type} `(EqA : DecEq A) : @DecEq (list A) := {}.
-Next Obligation.
-Proof.
-  eapply list_eq_dec; apply deqb_eq.
+  induct l.
+  - split; intros.
+    + apply orb_true_iff in H as [H | H].
+      * apply orb_true_iff. left.
+        apply orb_true_iff. now left.
+      * apply orb_true_iff. right.
+        now apply IHl in H.
+    + apply orb_true_iff in H as [H | H].
+      apply orb_true_iff in H as [H | H].
+      * apply orb_true_iff. now left.
+      * discriminate.
+      * apply orb_true_iff. right.
+        now apply IHl in H.
 Qed.

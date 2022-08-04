@@ -1,4 +1,23 @@
 (*|
+
+.. raw:: html
+
+  <style>
+    .highlight, .code .hll {
+      background-color: #ffffff;
+    }
+
+    .alectryon-coqdoc .doc .code, .alectryon-coqdoc .doc .comment,
+    .alectryon-coqdoc .doc .inlinecode, .alectryon-mref, .alectryon-block,
+    .alectryon-io, .alectryon-toggle-label, .alectryon-banner {
+      font-family: 'Fira Code', monospace;
+    }
+
+    kbd, pre, samp, tt, body code, body code.highlight, .docutils.literal {
+      font-family: 'Fira Code', monospace;
+    }
+  </style>
+
 .. coq:: none
 |*)
 From Coq Require Import Lists.List Nat Arith.EqNat Bool.Bool.
@@ -69,10 +88,10 @@ defined in Coq as :coq:`delta_star`:
 
 .. coq::
 |*)
-Fixpoint delta_star {Q Σ : Type} (M : dfa Q Σ) (p : Q) (x : list Σ) :=
-  match x with
-  | [] => p
-  | x :: xs => delta_star M (M.(δ) p x) xs
+Fixpoint delta_star {Q Σ} (M : dfa Q Σ) p x :=
+match x with
+| []      => p
+| x :: xs => delta_star M (M.(δ) p x) xs
 end.
 (*|
 
@@ -87,12 +106,12 @@ Section DeltaStar.
 
   Lemma delta_cons : forall p a x, 
     delta_star M (δ M p a) x = delta_star M p (a :: x). (* .no-goals *)
-  Proof. (* .no-goals *) trivial. Qed.
+  Proof. trivial. Qed.
 
   Lemma delta_cat : forall p x y,
     delta_star M p (x ++ y) = delta_star M (delta_star M p x) y. (* .no-goals *)
-  Proof. (* .no-goals *)
-    intros p x. (* .no-goals *)
+  Proof.
+    intros p x.
     gendep p.
     induct x.
 (*|
@@ -104,12 +123,12 @@ moves on to the inductive case.
 
 .. coq::
 |*)
-    - (* .no-goals *) rewrite IHx. reflexivity.
+    - rewrite IHx. reflexivity.
   Qed.
 
   Lemma delta_single: forall p a,
       M.(δ) p a = delta_star M p [a]. (* .no-goals *)
-  Proof. (* .no-goals *) trivial. (* .no-goals *) Qed.
+  Proof. trivial. Qed.
 
 (*|
 
@@ -121,9 +140,9 @@ also another way to look at the :math:`\delta^*` function.
 
   Theorem delta_step: forall w p x,
     delta_star M p (w ++ [x]) = M.(δ) (delta_star M p w) x. (* .no-goals *)
-  Proof. (* .no-goals *)
+  Proof. 
     induct w.
-    - (* .no-goals *) rewrite IHw. reflexivity. (* .fold *)
+    - rewrite IHw. reflexivity. (* .fold *)
   Qed.
 
 End DeltaStar.
@@ -179,10 +198,19 @@ original DFA, provided we start from the same state.
 
   Lemma compl_dfa_step: forall p w,
     delta_star M p w = delta_star (compl_dfa M) p w. (* .no-goals *)
-  Proof. (* .no-goals *)
-    intros. (* .no-goals *)
+  Proof. 
+    intros. 
+(*|
+
+Instead of using the normal induction principle of lists, we use 
+:coqid:`rev_ind <Coq.Lists.List#rev_ind>` which allows us to perform 
+induction on the list in reverse. This allows us to use the delta_step lemma 
+and it also makes the proofs a bit more easier.
+
+|*)
+    Check rev_ind. (* .unfold .no-goals .no-hyps .no-in *)
     induct' w rev_ind.
-    - (* .no-goals *) simpl in *.
+    - simpl in *.
       rewrite delta_step.
       rewrite delta_step.
       rewrite IHw.
@@ -191,19 +219,20 @@ original DFA, provided we start from the same state.
 
 (*|
 
-We can then use this lemma to prove that our complement DFA constructions is 
+We can then use this lemma to prove that our complement DFA construction is 
 actually correct i.e. 
-:math:`w \in L(M) \longleftrightarrow w \notin L(\overline M)`.
+:math:`w \in \mathcal{L}(M) \longleftrightarrow w \notin \mathcal{L}(M^\complement)`.
 
 .. coq::
 |*)
 
   Theorem compl_dfa_correct: forall w,
     acceptb M w = true <-> acceptb (compl_dfa M) w = false. (* .no-goals *)
-  Proof. (* .no-goals *)
+  Proof. 
     intros.
-    unfold acceptb. (* .no-goals *)
-    split. (* .no-goals *)
+    unfold acceptb. 
+    split. 
+    Check Bool.negb_false_iff. (* .unfold .no-goals .no-hyps .no-in *)
     all: rewrite compl_dfa_step;
          simpl;
          apply Bool.negb_false_iff.
@@ -214,7 +243,7 @@ actually correct i.e.
 |*)
   Lemma compl_dfa_correct_corr:
     forall word,
-    acceptb M word = false <-> acceptb (compl_dfa M) word = true.
+    acceptb M word = false <-> acceptb (compl_dfa M) word = true. (* .no-goals *)
   Proof.
     intros.
     unfold acceptb.
@@ -247,17 +276,6 @@ The intersection of two DFAs is now defined. Given DFAs :math:`M_1` and
 
 |*)
 Section Product.
-Fixpoint pair_up {A B} a l : list (A * B) :=
-  match l with
-  | [] => []
-  | x :: l' => (a, x) :: pair_up a l'
-  end. (* .none *)
-Fixpoint cross_product {A B} l1 l2 : list (A * B) :=
-  match l1, l2 with
-  | [], _ => []
-  | _, [] => []
-  | x :: l1', _ => pair_up x l2 ++ cross_product l1' l2
-  end. (* .none *)
 
 Definition inters_dfa {Q_1 Q_2 Σ} (M_1: dfa Q_1 Σ) (M_2: dfa Q_2 Σ) :
 dfa (Q_1 * Q_2) Σ := {|
@@ -278,9 +296,9 @@ Lemma inters_dfa_step Q_1 Q_2 Σ:
   forall (M_1: dfa Q_1 Σ) (M_2: dfa Q_2 Σ) p q w,
     delta_star (inters_dfa M_1 M_2) (p, q) w 
       = (delta_star M_1 p w, delta_star M_2 q w). (* .no-goals *)
-Proof. (* .no-goals *)
+Proof. 
   induct' w rev_ind.
-  - (* .no-goals *) rewrite delta_step.
+  -  rewrite delta_step.
     rewrite IHw.
     simpl.
     rewrite delta_step.
@@ -298,8 +316,9 @@ Theorem inters_dfa_correct Q_1 Q_2 Σ:
   acceptb (inters_dfa M_1 M_2) w = true
     <-> (acceptb M_1 w = true) /\ (acceptb M_2 w = true). (* .no-goals *)
 Proof.
-  unfold acceptb. (* .no-goals *)
+  unfold acceptb. 
   split.
+  Check Bool.andb_true_iff. (* .unfold .no-goals .no-hyps .no-in *)
   all: simpl;
        rewrite inters_dfa_step;
        apply Bool.andb_true_iff.
@@ -311,7 +330,7 @@ Qed.
 Lemma inters_dfa_correct_corr Q_1 Q_2 Σ:
   forall (M_1: dfa Q_1 Σ) (M_2: dfa Q_2 Σ) w,
   acceptb (inters_dfa M_1 M_2) w = false 
-    <-> (acceptb M_1 w = false) \/ (acceptb M_2 w = false).
+    <-> (acceptb M_1 w = false) \/ (acceptb M_2 w = false). (* .no_goals *)
 Proof.
   unfold acceptb.
   split.
@@ -325,7 +344,7 @@ The union DFA is defined very easily using DeMorgan's law:
 
 .. math::
   
-  M_\cup = \overline{\overline{M_1} \cap \overline{M_2}}
+  M_\cup = (M_1^\complement \cap M_2^\complement)^\complement
 
 , which we define as such in Coq...
 
@@ -346,6 +365,8 @@ Theorem union_dfa_correct Q_1 Q_2 Σ:
     <-> (acceptb M_1 w = true) \/ (acceptb M_2 w = true). (* .no-goals *)
 Proof.
   split; unfold union_dfa; intros.
+  Check compl_dfa_correct_corr. (* .unfold .no-goals .no-hyps .no-in *)
+  Check inters_dfa_correct_corr. (* .unfold .no-goals .no-hyps .no-in *)
   - apply compl_dfa_correct_corr in H.
     apply inters_dfa_correct_corr in H.
     destruct H as [H | H];
@@ -361,3 +382,7 @@ Proof.
 Qed.
 
 End Product.
+
+(*|
+Back to `project index <index.html>`_.
+|*)
